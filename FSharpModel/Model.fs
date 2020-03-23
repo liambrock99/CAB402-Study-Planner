@@ -10,7 +10,7 @@ let private unitList : Map<UnitCode,UnitInfo> =
 
 // Lookup the given unit code in the unitList 
 let lookup (code:UnitCode) : UnitInfo =
-    unitList.Item(code)
+    Map.find code unitList
 
 // Functions dealing with semester sequences ...
 
@@ -38,9 +38,12 @@ let nextSemester (semester:Semester) =
 // E.g. SemesterSequence 2019/2 2021/1 would return the sequence 2019/2, 2019/S, 2020/1, 2020/2, 2020/S, 2021/1.
 let rec SemesterSequence (firstSemester: Semester) (lastSemester: Semester): seq<Semester> =
     seq {
-        yield firstSemester
-        if firstSemester = lastSemester then ()
-        else yield! nextSemester firstSemester |> SemesterSequence lastSemester
+        if firstSemester <> lastSemester 
+        then
+            yield firstSemester
+            yield! SemesterSequence (nextSemester firstSemester) lastSemester
+        else 
+            yield lastSemester
     }
 
 
@@ -62,7 +65,10 @@ let rec private satisfied (prereq:Prereq) (plannedUnits:StudyPlan) (before: Seme
 
  // True if and only if the unit with the specified unit code is offered in the specified semester
 let isOffered (unitCode:UnitCode) (semester:Semester) : bool =
-    lookup(unitCode).offered |> Seq.contains(semester.offering)
+    let unitInfo = lookup unitCode
+    let offered = unitInfo.offered
+    let offering = semester.offering
+    Set.contains offering offered
 
 
 // True if and only if the specified unit can be studied in the specified semester based on the specified study plan.
@@ -91,23 +97,37 @@ let isLegalPlan (plan: StudyPlan): bool =
 
 // Functions returning various information about units ...
 
+let rec getUnitCodeSeq (prereq:Prereq) : seq<UnitCode> =
+    seq {
+        match prereq with
+        | And seq | Or seq ->
+            yield! Seq.map getUnitCodeSeq seq
+                   |> Seq.concat
+        | Unit unit -> yield unit
+        | _ -> ()
+    }
+
 // Returns all of the unit codes that are mentioned anywhere in the prerequisites of the specified unit
 let UnitPrereqs (unitCode:UnitCode) : seq<UnitCode> = 
-    // TODO: Fixme (difficulty: 6/10)
-    Seq.empty
+    let unitInfo = lookup unitCode
+    let prereq = unitInfo.prereq
+    getUnitCodeSeq prereq
+  
 
 // The title of the specified unit
 // e.g. getUnitTitle("CAB402") = "Programming Paradigms" 
 let getUnitTitle (unitCode:UnitCode) : string =
-    unitCode + " " + lookup(unitCode).title
+    let unitInfo = lookup unitCode
+    let title = unitInfo.title
+    unitCode + " " + title
     
-    
-
+   
 // The prerequisites of the specified unit as a string
 // e.g. getPrereq("CAB402") = "Prereqs: (CAB201 or ITD121) and CAB203"
 // e.g. getPrereq("IFB104") = "Prereqs: Nil"
 let getPrereq (unitCode:UnitCode) : string =
-    let prereqString = lookup(unitCode).prereqString
+    let unitInfo = lookup unitCode 
+    let prereqString = unitInfo.prereqString
     if prereqString = "" then "Prereqs: Nil" else "Prereqs: " + prereqString
     
 
@@ -115,15 +135,23 @@ let getPrereq (unitCode:UnitCode) : string =
 // e.g. displayOffered("CAB201") = "semester 1 or 2"
 // e.g. displayOffered("CAB402") = "semester 1"
 let displayOffered (unitCode:UnitCode) : string =
-    let offered = lookup(unitCode).offered |> Set.toList
-    match offered with
-    | [Semester1] -> "semester 1"
-    | [Semester2] -> "semester 2"
-    | [Semester1; Semester2] -> "semester 1 or 2"
+    let unitInfo = lookup unitCode
+    let offered = unitInfo.offered
+    let sem1 = Set.contains Semester1 offered
+    let sem2 = Set.contains Semester2 offered
+    let summer = Set.contains Summer offered
+    let count = Set.count offered
+    match count with
+    | 3 -> "semester 1 or 2 or summer"
+    | 2 when sem1 && sem2 -> "semester 1 or 2"
+    | 2 when sem1 && summer -> "semester 1 or summer"
+    | 2 when sem2 && summer -> "semester 2 or summer"
+    | 1 when sem1 -> "semester 1"
+    | 1 when sem2 -> "semester 2"
+    | 1 when summer -> "summer"
     | _ -> ""
-    
-
-    
+  
+        
 // The specified semester as a string (format: year/semester)
 // e.g. display(currentSemester) = "2020/1"
 let display (sem:Semester) : string = 
