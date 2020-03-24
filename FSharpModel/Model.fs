@@ -54,9 +54,22 @@ let rec SemesterSequence (firstSemester: Semester) (lastSemester: Semester): seq
 
 // True if and only if the prerequisites have been met based on units in the study 
 // plan taken in an earlier semester (based on the before function)
-let rec private satisfied (prereq:Prereq) (plannedUnits:StudyPlan) (before: Semester->bool) : bool = 
-    // TODO: Fixme (difficulty: 8/10)
-    false
+let rec private satisfied (prereq:Prereq) (plannedUnits:StudyPlan) (before: Semester->bool) : bool =
+    match prereq with
+    | And seq ->
+        Seq.map (fun x -> satisfied x plannedUnits before) seq
+        |> Seq.reduce (&&)
+    | Or seq -> 
+        Seq.map (fun x -> satisfied x plannedUnits before) seq
+        |> Seq.reduce (||)
+    | Unit unit -> 
+        Seq.exists (fun (unitInPlan:UnitInPlan) -> unitInPlan.code = unit && before unitInPlan.semester) plannedUnits
+    | CreditPoints cp ->
+        let num = Seq.filter (fun (unitInPlan:UnitInPlan) -> before unitInPlan.semester) plannedUnits
+                  |> Seq.length
+        num * 12 >= cp
+    | Nil -> true
+
 
 
 
@@ -74,7 +87,10 @@ let isOffered (unitCode:UnitCode) (semester:Semester) : bool =
 // True if and only if the specified unit can be studied in the specified semester based on the specified study plan.
 // Requires that the unit is offered in that semester and that prerequistes are meet by units studied before that semester 
 let isLegalIn (unitCode:UnitCode) (semester:Semester) (plannedUnits:StudyPlan) : bool =
-    true
+    let unitInfo = lookup unitCode
+    let prereq = unitInfo.prereq
+    let before = fun sem -> sem < semester 
+    isOffered unitCode semester && satisfied prereq plannedUnits before
 
 // True if and only if the specified unit can be added to the study plan in that semester.
 // Requires that the number of units currently studied in that semester is less than four and that it is legal in that semester
@@ -97,6 +113,7 @@ let isLegalPlan (plan: StudyPlan): bool =
 
 // Functions returning various information about units ...
 
+// Helper for UnitPrereqs
 let rec getUnitCodeSeq (prereq:Prereq) : seq<UnitCode> =
     seq {
         match prereq with
