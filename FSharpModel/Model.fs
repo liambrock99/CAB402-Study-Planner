@@ -95,18 +95,24 @@ let isLegalIn (unitCode:UnitCode) (semester:Semester) (plannedUnits:StudyPlan) :
 // True if and only if the specified unit can be added to the study plan in that semester.
 // Requires that the number of units currently studied in that semester is less than four and that it is legal in that semester
 let isEnrollableIn (unitCode:UnitCode) (semester:Semester) (plannedUnits:StudyPlan) : bool =
-    // TODO: Fixme (difficulty: 2/10)
-    true
+    let n = Seq.filter (fun (unitInPlan:UnitInPlan) -> semester = unitInPlan.semester) plannedUnits
+            |> Seq.length
+    n < 4 && isLegalIn unitCode semester plannedUnits
 
 // True if and only if the unit can be legally added to the study plan (in some semester) 
 let isEnrollable (unitCode:UnitCode) (plannedUnits:StudyPlan) : bool =
-    // TODO: Fixme (difficulty: 4/10)
-    true
+    let unitInfo = lookup unitCode
+    let prereq = unitInfo.prereq
+    let before = fun sem -> true
+    satisfied prereq plannedUnits before
 
 // True if and only if the all of the units in the study plan are legally scheduled
 let isLegalPlan (plan: StudyPlan): bool =
     // TODO: Fixme (difficulty: 4/10)
-    true
+    let predicate (unitInPlan:UnitInPlan) =
+        isLegalIn unitInPlan.code unitInPlan.semester plan
+        
+    Seq.forall predicate plan
 
 
 
