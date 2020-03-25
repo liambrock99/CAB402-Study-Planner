@@ -56,18 +56,18 @@ let rec SemesterSequence (firstSemester: Semester) (lastSemester: Semester): seq
 // plan taken in an earlier semester (based on the before function)
 let rec private satisfied (prereq:Prereq) (plannedUnits:StudyPlan) (before: Semester->bool) : bool =
     match prereq with
-    | And seq ->
-        Seq.map (fun x -> satisfied x plannedUnits before) seq
+    | And _and ->
+        Seq.map (fun prereq -> satisfied prereq plannedUnits before) _and
         |> Seq.reduce (&&)
-    | Or seq -> 
-        Seq.map (fun x -> satisfied x plannedUnits before) seq
+    | Or _or -> 
+        Seq.map (fun prereq -> satisfied prereq plannedUnits before) _or
         |> Seq.reduce (||)
     | Unit unit -> 
         Seq.exists (fun (unitInPlan:UnitInPlan) -> unitInPlan.code = unit && before unitInPlan.semester) plannedUnits
     | CreditPoints cp ->
-        let num = Seq.filter (fun (unitInPlan:UnitInPlan) -> before unitInPlan.semester) plannedUnits
-                  |> Seq.length
-        num * 12 >= cp
+        let numBefore = Seq.filter (fun (unitInPlan:UnitInPlan) -> before unitInPlan.semester) plannedUnits
+                        |> Seq.length
+        numBefore * 12 >= cp
     | Nil -> true
 
 
@@ -95,9 +95,9 @@ let isLegalIn (unitCode:UnitCode) (semester:Semester) (plannedUnits:StudyPlan) :
 // True if and only if the specified unit can be added to the study plan in that semester.
 // Requires that the number of units currently studied in that semester is less than four and that it is legal in that semester
 let isEnrollableIn (unitCode:UnitCode) (semester:Semester) (plannedUnits:StudyPlan) : bool =
-    let n = Seq.filter (fun (unitInPlan:UnitInPlan) -> semester = unitInPlan.semester) plannedUnits
-            |> Seq.length
-    n < 4 && isLegalIn unitCode semester plannedUnits
+    let numInSem = Seq.filter (fun (unitInPlan:UnitInPlan) -> semester = unitInPlan.semester) plannedUnits
+                   |> Seq.length
+    numInSem < 4 && isLegalIn unitCode semester plannedUnits
 
 // True if and only if the unit can be legally added to the study plan (in some semester) 
 let isEnrollable (unitCode:UnitCode) (plannedUnits:StudyPlan) : bool =
@@ -108,11 +108,7 @@ let isEnrollable (unitCode:UnitCode) (plannedUnits:StudyPlan) : bool =
 
 // True if and only if the all of the units in the study plan are legally scheduled
 let isLegalPlan (plan: StudyPlan): bool =
-    // TODO: Fixme (difficulty: 4/10)
-    let predicate (unitInPlan:UnitInPlan) =
-        isLegalIn unitInPlan.code unitInPlan.semester plan
-        
-    Seq.forall predicate plan
+    Seq.forall (fun (unitInPlan:UnitInPlan) -> isLegalIn unitInPlan.code unitInPlan.semester plan) plan
 
 
 
@@ -120,11 +116,11 @@ let isLegalPlan (plan: StudyPlan): bool =
 // Functions returning various information about units ...
 
 // Helper for UnitPrereqs
-let rec getUnitCodeSeq (prereq:Prereq) : seq<UnitCode> =
+let rec getUnitPrereqs (prereq:Prereq) : seq<UnitCode> =
     seq {
         match prereq with
-        | And seq | Or seq ->
-            yield! Seq.map getUnitCodeSeq seq
+        | And prereqSeq | Or prereqSeq ->
+            yield! Seq.map getUnitPrereqs prereqSeq
                    |> Seq.concat
         | Unit unit -> yield unit
         | _ -> ()
@@ -134,7 +130,7 @@ let rec getUnitCodeSeq (prereq:Prereq) : seq<UnitCode> =
 let UnitPrereqs (unitCode:UnitCode) : seq<UnitCode> = 
     let unitInfo = lookup unitCode
     let prereq = unitInfo.prereq
-    getUnitCodeSeq prereq
+    getUnitPrereqs prereq
   
 
 // The title of the specified unit
