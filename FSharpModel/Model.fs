@@ -62,13 +62,14 @@ let rec private satisfied (prereq:Prereq) (plannedUnits:StudyPlan) (before: Seme
     | Or _or -> 
         Seq.map (fun prereq -> satisfied prereq plannedUnits before) _or
         |> Seq.reduce (||)
-    | Unit unit -> 
+    | Unit unit ->
         Seq.exists (fun (unitInPlan:UnitInPlan) -> unitInPlan.code = unit && before unitInPlan.semester) plannedUnits
     | CreditPoints cp ->
-        let numBefore = Seq.filter (fun (unitInPlan:UnitInPlan) -> before unitInPlan.semester) plannedUnits
-                        |> Seq.length
-        numBefore * 12 >= cp
-    | Nil -> true
+        Seq.filter (fun unitInPlan -> before unitInPlan.semester) plannedUnits
+        |> Seq.map (fun unitInPlan -> lookup(unitInPlan.code).creditpoints)
+        |> Seq.sum >= cp
+    | Nil -> 
+        true
 
 
 
@@ -123,7 +124,8 @@ let rec getUnitPrereqs (prereq:Prereq) : seq<UnitCode> =
             yield! Seq.map getUnitPrereqs prereqSeq
                    |> Seq.concat
         | Unit unit -> yield unit
-        | _ -> ()
+        | CreditPoints _ | Nil ->
+            yield! Seq.empty
     }
 
 // Returns all of the unit codes that are mentioned anywhere in the prerequisites of the specified unit

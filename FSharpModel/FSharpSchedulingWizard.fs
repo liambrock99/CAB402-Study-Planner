@@ -18,7 +18,7 @@ let currentSemester : Semester =
 // If none of the remaining units can be scheduled then we fail.
 // Otherwise we try scheduling that unit in each of the possible semesters in which it can be legally scheduled. 
 // If any of those schedules can be extended into a complete plan then we succeed, otherwise we fail.
-let rec private scheduleRemaining (remainingUnits:BoundPlan) (plannedUnits:StudyPlan): StudyPlan option =
+let rec private scheduleRemaining (remainingUnits:BoundPlan) (plannedUnits:StudyPlan) : StudyPlan option =
     // TODO: Fixme (difficulty: 10/10)
     Option.None
 
