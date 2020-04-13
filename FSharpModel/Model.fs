@@ -56,11 +56,11 @@ let rec SemesterSequence (firstSemester: Semester) (lastSemester: Semester): seq
 // plan taken in an earlier semester (based on the before function)
 let rec private satisfied (prereq:Prereq) (plannedUnits:StudyPlan) (before: Semester->bool) : bool =
     match prereq with
-    | And _and ->
-        Seq.map (fun prereq -> satisfied prereq plannedUnits before) _and
+    | And seq ->
+        Seq.map (fun prereq -> satisfied prereq plannedUnits before) seq
         |> Seq.reduce (&&)
-    | Or _or -> 
-        Seq.map (fun prereq -> satisfied prereq plannedUnits before) _or
+    | Or seq -> 
+        Seq.map (fun prereq -> satisfied prereq plannedUnits before) seq
         |> Seq.reduce (||)
     | Unit unit ->
         Seq.exists (fun (unitInPlan:UnitInPlan) -> unitInPlan.code = unit && before unitInPlan.semester) plannedUnits
@@ -96,9 +96,9 @@ let isLegalIn (unitCode:UnitCode) (semester:Semester) (plannedUnits:StudyPlan) :
 // True if and only if the specified unit can be added to the study plan in that semester.
 // Requires that the number of units currently studied in that semester is less than four and that it is legal in that semester
 let isEnrollableIn (unitCode:UnitCode) (semester:Semester) (plannedUnits:StudyPlan) : bool =
-    let numInSem = Seq.filter (fun (unitInPlan:UnitInPlan) -> semester = unitInPlan.semester) plannedUnits
-                   |> Seq.length
-    numInSem < 4 && isLegalIn unitCode semester plannedUnits
+    Seq.filter (fun (unitInPlan:UnitInPlan) -> semester = unitInPlan.semester) plannedUnits
+    |> Seq.length
+    |> fun numUnits -> numUnits < 4 && isLegalIn unitCode semester plannedUnits
 
 // True if and only if the unit can be legally added to the study plan (in some semester) 
 let isEnrollable (unitCode:UnitCode) (plannedUnits:StudyPlan) : bool =
@@ -120,8 +120,8 @@ let isLegalPlan (plan: StudyPlan): bool =
 let rec getUnitPrereqs (prereq:Prereq) : seq<UnitCode> =
     seq {
         match prereq with
-        | And prereqSeq | Or prereqSeq ->
-            yield! Seq.map getUnitPrereqs prereqSeq
+        | And seq | Or seq ->
+            yield! Seq.map getUnitPrereqs seq
                    |> Seq.concat
         | Unit unit -> yield unit
         | CreditPoints _ | Nil ->
@@ -131,16 +131,14 @@ let rec getUnitPrereqs (prereq:Prereq) : seq<UnitCode> =
 // Returns all of the unit codes that are mentioned anywhere in the prerequisites of the specified unit
 let UnitPrereqs (unitCode:UnitCode) : seq<UnitCode> = 
     let unitInfo = lookup unitCode
-    let prereq = unitInfo.prereq
-    getUnitPrereqs prereq
+    getUnitPrereqs unitInfo.prereq
   
 
 // The title of the specified unit
 // e.g. getUnitTitle("CAB402") = "Programming Paradigms" 
 let getUnitTitle (unitCode:UnitCode) : string =
     let unitInfo = lookup unitCode
-    let title = unitInfo.title
-    unitCode + " " + title
+    unitCode + " " + unitInfo.title
     
    
 // The prerequisites of the specified unit as a string
@@ -158,19 +156,16 @@ let getPrereq (unitCode:UnitCode) : string =
 let displayOffered (unitCode:UnitCode) : string =
     let unitInfo = lookup unitCode
     let offered = unitInfo.offered
-    let sem1 = Set.contains Semester1 offered
-    let sem2 = Set.contains Semester2 offered
-    let summer = Set.contains Summer offered
-    let count = Set.count offered
-    match count with
-    | 3 -> "semester 1 or 2 or summer"
-    | 2 when sem1 && sem2 -> "semester 1 or 2"
-    | 2 when sem1 && summer -> "semester 1 or summer"
-    | 2 when sem2 && summer -> "semester 2 or summer"
-    | 1 when sem1 -> "semester 1"
-    | 1 when sem2 -> "semester 2"
-    | 1 when summer -> "summer"
-    | _ -> ""
+    let offeringToString offering = 
+        match offering with
+        | Semester1 -> "semester 1"
+        | Semester2 -> if not (Set.contains Semester1 offered) then "semester 2" else "2"
+        | Summer -> "summer"
+    Set.toSeq offered
+    |> Seq.map offeringToString
+    |> String.concat " or "
+  
+ 
   
         
 // The specified semester as a string (format: year/semester)

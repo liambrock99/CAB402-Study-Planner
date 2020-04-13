@@ -26,14 +26,14 @@ let rec private scheduleRemaining (remainingUnits:BoundPlan) (plannedUnits:Study
 // in semester 1 or semester 2, returns the earliest possible semester by which all units in
 // the study plan could be completed, assuming at most 4 units per semester.
 let private bestAchievable (firstSemester:Semester) (plan:StudyPlan) : Semester =
-     // TODO: Fixme (difficulty: 5/10)
-     firstSemester
+     let count = Seq.length plan
+     currentSemester
+        
 
 // Returns the last semester in which units will be studied in the study plan
 let lastSemester (plan: StudyPlan): Semester =
-     // TODO: Fixme (difficulty: 3/10)
-     currentSemester
-
+     Seq.map (fun unitInPlan -> unitInPlan.semester) plan |> Seq.max
+     
 
 // Returns true if and only if every unit in the plan has at least one possible semester for it to be scheduled
 let allBoundsFeasible (bounds:BoundPlan) =
