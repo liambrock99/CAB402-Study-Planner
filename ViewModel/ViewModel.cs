@@ -255,8 +255,8 @@ namespace QUT
             ApplyWizard = ReactiveCommand.CreateFromTask<bool>(Wizard);
             CancelWizard = ReactiveCommand.Create(() => cancelWizard.Cancel());
             
-            SwitchToEN01 = ReactiveCommand.Create(() => { studyAreas = LoadCourse(CourseData.Properties.Resources.EN01); plan.Clear();  });
-            SwitchToIN01 = ReactiveCommand.Create(() => { studyAreas = LoadCourse(CourseData.Properties.Resources.IN01); plan.Clear();  });
+            SwitchToEN01 = ReactiveCommand.Create(() => { plan.Clear(); studyAreas = LoadCourse(CourseData.Properties.Resources.EN01);  });
+            SwitchToIN01 = ReactiveCommand.Create(() => { plan.Clear(); studyAreas = LoadCourse(CourseData.Properties.Resources.IN01);  });
 
             plan.Connect().ToProperty(this, vm => vm.planChange, out _planChange);
 

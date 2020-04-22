@@ -40,7 +40,7 @@ let rec private latestSemester (dependencies: seq<UnitCode*UnitCode>) (unitCode:
 
 // Create a bound plan by determining for each unit in the study plan the earliest and latest possible semester 
 // in which that unit could be taken. All units in the plan must be scheduled no earlier than the first semester
-// and no later than the last semester. Dependencies between units in the study plan are used to create tighter
+// and no later than ththe last semester. Dependencies between units in the study plan are used to create tighter
 // tighter bounds on when each unit can be taken. 
 // For example, if the study plan included IFB104, CAB203 and CAB402 and the last semester was 2022/2
 // the latest that CAB402 could be taken would be 2022/1 (since it is not offered in semester 2). 
