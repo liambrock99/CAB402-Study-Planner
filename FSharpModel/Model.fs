@@ -38,8 +38,7 @@ let nextSemester (semester:Semester) =
 // E.g. SemesterSequence 2019/2 2021/1 would return the sequence 2019/2, 2019/S, 2020/1, 2020/2, 2020/S, 2021/1.
 let rec SemesterSequence (firstSemester: Semester) (lastSemester: Semester): seq<Semester> =
     seq {
-        if firstSemester <> lastSemester 
-        then
+        if firstSemester <> lastSemester then
             yield firstSemester
             yield! SemesterSequence (nextSemester firstSemester) lastSemester
         else 
@@ -63,9 +62,11 @@ let rec private satisfied (prereq:Prereq) (plannedUnits:StudyPlan) (before: Seme
         Seq.map (fun prereq -> satisfied prereq plannedUnits before) seq
         |> Seq.reduce (||)
     | Unit unit ->
-        Seq.exists (fun (unitInPlan:UnitInPlan) -> unitInPlan.code = unit && before unitInPlan.semester) plannedUnits
+        plannedUnits
+        |> Seq.exists (fun (unitInPlan:UnitInPlan) -> unitInPlan.code = unit && before unitInPlan.semester) 
     | CreditPoints cp ->
-        Seq.filter (fun unitInPlan -> before unitInPlan.semester) plannedUnits
+        plannedUnits
+        |> Seq.filter (fun unitInPlan -> before unitInPlan.semester)
         |> Seq.map (fun unitInPlan -> lookup(unitInPlan.code).creditpoints)
         |> Seq.sum >= cp
     | Nil -> 
@@ -90,7 +91,7 @@ let isOffered (unitCode:UnitCode) (semester:Semester) : bool =
 let isLegalIn (unitCode:UnitCode) (semester:Semester) (plannedUnits:StudyPlan) : bool =
     let unitInfo = lookup unitCode
     let prereq = unitInfo.prereq
-    let before = fun sem -> sem < semester 
+    let before = fun sem -> sem < semester
     isOffered unitCode semester && satisfied prereq plannedUnits before
 
 // True if and only if the specified unit can be added to the study plan in that semester.

@@ -2,6 +2,7 @@
 
 open QUT
 open StudyPlannerModel
+open BoundsOptimizer
 
 // Functions used for optimizing study plan ...
 
@@ -18,38 +19,54 @@ let currentSemester : Semester =
 // Otherwise we try scheduling that unit in each of the possible semesters in which it can be legally scheduled. 
 // If any of those schedules can be extended into a complete plan then we succeed, otherwise we fail.
 let rec private scheduleRemaining (remainingUnits:BoundPlan) (plannedUnits:StudyPlan) : StudyPlan option =
-     if Seq.isEmpty remainingUnits then Some plannedUnits
+     if Seq.isEmpty remainingUnits then 
+        Some plannedUnits
      else
-         let possibleUnit =  remainingUnits
-                             |> Seq.tryFind (fun unit -> Seq.exists (fun semester -> isEnrollableIn unit.code semester plannedUnits) unit.possibleSemesters) 
+         let possibleUnit = 
+             remainingUnits
+             |> Seq.tryFind (fun unit -> 
+                unit.possibleSemesters
+                |> Seq.exists (fun semester -> isEnrollableIn unit.code semester plannedUnits)
+             ) 
          match possibleUnit with
-         | Some someUnit ->        
-             let  possiblePlans = someUnit.possibleSemesters
-                                 |> Seq.filter (fun semester -> isEnrollableIn someUnit.code semester plannedUnits)
-                                 |> Seq.map (fun semester -> seq { yield! plannedUnits; 
-                                                                   yield { code = someUnit.code; studyArea = someUnit.studyArea; semester = semester } })
-             let remaining = List.filter (fun unit -> unit <> someUnit) remainingUnits
-             Seq.map (fun plan -> scheduleRemaining remaining plan) possiblePlans
-             |> Seq.tryFind (fun plan -> Option.isSome plan)
+         | Some someUnit ->
+             let newRemaining = List.filter (fun unit -> unit <> someUnit) remainingUnits
+             let possiblePlans = 
+                someUnit.possibleSemesters
+                |> Seq.filter (fun semester -> isEnrollableIn someUnit.code semester plannedUnits)
+                |> Seq.map (fun semester ->
+                    seq {
+                        yield! plannedUnits
+                        yield { code = someUnit.code; studyArea = someUnit.studyArea; semester = semester}
+                    }
+                    |> scheduleRemaining newRemaining
+                ) 
+             possiblePlans     
+             |> Seq.tryFind Option.isSome
              |> Option.flatten
-         | None -> Option.None
+         | None 
+            -> Option.None
 
 // Assuming that study commences in the given first semester and that units are only studied 
 // in semester 1 or semester 2, returns the earliest possible semester by which all units in
 // the study plan could be completed, assuming at most 4 units per semester.
 let private bestAchievable (firstSemester:Semester) (plan:StudyPlan) : Semester =
-     let len = Seq.length plan
-     match len with
-     | x when x <= 4 -> currentSemester
-     | x when x <= 8 -> { year = 2020; offering = Semester2 }
-     | x when x <= 12 -> { year = 2020; offering = Summer }
-     | x when x <= 16 -> { year = 2021; offering = Semester1 }
-     | x when x <= 20 -> { year = 2021; offering = Semester2 }
-     | x when x <= 24 -> { year = 2021; offering = Summer }
-     | x when x <= 28 -> { year = 2022; offering = Semester1 }
-     | x when x <= 32 -> { year = 2022; offering = Summer }
-     | _ -> currentSemester
-        
+     let numUnits = Seq.length plan
+     let numSemesters =
+         let remainder = numUnits % 4
+         let quotient = numUnits / 4
+         match remainder with
+         | 0 -> quotient - 1
+         | _ -> quotient
+     let rec getBestAchievable numSemesters startingSemester =
+        if numSemesters = 0 then 
+            startingSemester
+        else 
+            let next = nextSemester startingSemester
+            if next.offering = Summer then next |> getBestAchievable numSemesters
+            else next |> getBestAchievable (numSemesters - 1)
+     getBestAchievable numSemesters firstSemester   
+
 
 // Returns the last semester in which units will be studied in the study plan
 let lastSemester (plan: StudyPlan): Semester =
@@ -63,7 +80,7 @@ let allBoundsFeasible (bounds:BoundPlan) =
 
 // Returns a sequence of progressively better study plans.
 // Each successive plan returned finishes in an earlier semester than the previous plan.
-// Should return the empty sequence if the plan cannot be improved.
+// Should return the empty sequence if the plan cannot be improved. 
 // The earliest semester that we can schedule units in is the current semester.
 // Successively better plans are created by specifying progressively tighter target graduation semesters.
 // We determine the final semester of the current plan and set our target semester as the semester before that.
@@ -74,5 +91,16 @@ let TryToImproveSchedule (plan:StudyPlan) : seq<StudyPlan> =
     let last = lastSemester plan
     let bestPossible = bestAchievable first plan
     let rec TryToCompleteBy (targetGraduation:Semester) =
-        Seq.empty
+        seq {
+            if targetGraduation >= bestPossible then
+                let boundPlan = boundUnitsInPlan plan first targetGraduation
+                if allBoundsFeasible boundPlan then
+                    let betterPlan = scheduleRemaining boundPlan Seq.empty
+                    match betterPlan with
+                    | Some somePlan ->
+                        yield somePlan
+                        yield! TryToCompleteBy (lastSemester somePlan |> previousSemester)
+                    | None -> 
+                        yield! Seq.empty
+        }
     TryToCompleteBy (previousSemester last)
