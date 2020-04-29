@@ -1,6 +1,7 @@
 ﻿module BoundsOptimizer
 
 open QUT
+open StudyPlannerModel
 
 // Challenge exercise for those students aiming for grade of 6 or 7 !!!!!!!!
 
@@ -13,31 +14,72 @@ open QUT
 // units in the plan. Let's assume we have a plan involving units X and Y that is legal. If we find that removing X from the plan make 
 // Y no longer enrollable (in any semester), then we can conclude that X must be taken before Y.
 let unitDependenciesWithinPlan (allUnits: StudyPlan) : seq<UnitCode*UnitCode> =
-    // TODO: Fixme (difficulty: 7/10)
-    Seq.empty
+    seq {
+        for unitX in allUnits do
+            let newPlan = Seq.filter (fun unit -> unit <> unitX) allUnits
+            for unitY in allUnits do
+                if not (isEnrollable unitY.code newPlan) then
+                    yield (unitX.code, unitY.code)
+    }
 
 // Returns the first semester on or after the given semester in which the specified unit is offered
 let rec private firstOfferingOnOrAfter (unitCode: UnitCode) (semester: Semester) : Semester =
-    // TODO: Fixme (difficulty: 3/10)
-    { year = 1969; offering = Summer }
+    if isOffered unitCode semester then 
+        semester
+    else 
+        nextSemester semester 
+        |> firstOfferingOnOrAfter unitCode
 
 // Returns the first semester on or before the given semester in which the specified unit is offered
 let rec private firstOfferingOnOrBefore (unitCode: UnitCode) (semester: Semester) : Semester =
-    // TODO: Fixme (difficulty: 3/10)
-    { year = 1969; offering = Summer }
+    if isOffered unitCode semester then 
+        semester
+    else
+        previousSemester semester
+        |> firstOfferingOnOrBefore unitCode
 
 // Based on a set of dependencies between units, determine the earliest possible semester in which the given unit could be studied
 // assuming that all units involved in the dependencies must all be completed no earlier than the first semester.
-let rec private earliestSemester (dependencies: seq<UnitCode*UnitCode>) (unitCode: UnitCode) (firstSemester: Semester)  : Semester =
-    // TODO: Fixme (difficulty: 9/10)
-    { year = 1969; offering = Summer }
+let rec private earliestSemester (dependencies: seq<UnitCode*UnitCode>) (unitCode: UnitCode) (firstSemester: Semester)  : Semester = 
+    let filtered =
+        dependencies
+        |> Seq.filter (fun dependency ->
+            let _, unitY = dependency
+            unitCode = unitY
+        )
+    if Seq.isEmpty filtered then
+        firstOfferingOnOrAfter unitCode firstSemester
+    else     
+        filtered
+        |> Seq.map (fun dependency -> 
+                let unitX, _ = dependency
+                earliestSemester dependencies unitX firstSemester
+        )
+        |> Seq.max 
+        |> nextSemester 
+        |> firstOfferingOnOrAfter unitCode
 
 // Based on a set of dependencies between units, determine the latest possible semester in which the given unit could be studied
 // assuming that all units involved in the dependencies must all be completed no later than the last semester.
 let rec private latestSemester (dependencies: seq<UnitCode*UnitCode>) (unitCode: UnitCode) (lastSemester: Semester) : Semester =
-    // TODO: Fixme (difficulty: 9/10)
-    { year = 1969; offering = Summer }
-
+    let filtered =
+        dependencies
+        |> Seq.filter (fun dependency ->
+            let unitX, _ = dependency
+            unitCode = unitX
+        )
+    if Seq.isEmpty filtered then
+        firstOfferingOnOrBefore unitCode lastSemester
+    else 
+        filtered
+        |> Seq.map (fun dependency ->
+            let _, unitY = dependency
+            latestSemester dependencies unitY lastSemester
+        )
+        |> Seq.min
+        |> previousSemester
+        |> firstOfferingOnOrBefore unitCode
+    
 // Create a bound plan by determining for each unit in the study plan the earliest and latest possible semester 
 // in which that unit could be taken. All units in the plan must be scheduled no earlier than the first semester
 // and no later than ththe last semester. Dependencies between units in the study plan are used to create tighter
@@ -51,8 +93,13 @@ let rec private latestSemester (dependencies: seq<UnitCode*UnitCode>) (unitCode:
 // Once we have the earliest and latest possible semesters in which each unit could be taken, we can then
 // generate a sequence of all possible semesters in between in which it might be taken (provided it is offered in those semesters).
 let boundUnitsInPlan (allUnits: StudyPlan) (firstSemester: Semester) (lastSemester: Semester) : BoundPlan =
-    // (difficulty: 7/10)
-    // Naive implementation - only fix for challenge exercise for those students aiming for grade of 6 or 7
+    let dependencies = unitDependenciesWithinPlan allUnits
     allUnits 
-    |> Seq.map (fun unit -> { code =unit.code; studyArea = unit.studyArea; possibleSemesters = (StudyPlannerModel.SemesterSequence firstSemester lastSemester)}) 
+    |> Seq.map (fun unit ->  
+        let earliest = earliestSemester dependencies unit.code firstSemester
+        let latest = latestSemester dependencies unit.code lastSemester
+        let semSeq = SemesterSequence earliest latest
+        let filtered = Seq.filter (fun semester -> isOffered unit.code semester) semSeq
+        { code = unit.code; studyArea = unit.studyArea; possibleSemesters = filtered }
+    ) 
     |> Seq.toList

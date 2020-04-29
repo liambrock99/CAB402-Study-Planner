@@ -38,11 +38,9 @@ let nextSemester (semester:Semester) =
 // E.g. SemesterSequence 2019/2 2021/1 would return the sequence 2019/2, 2019/S, 2020/1, 2020/2, 2020/S, 2021/1.
 let rec SemesterSequence (firstSemester: Semester) (lastSemester: Semester): seq<Semester> =
     seq {
-        if firstSemester <> lastSemester then
+        if firstSemester <= lastSemester then
             yield firstSemester
             yield! SemesterSequence (nextSemester firstSemester) lastSemester
-        else 
-            yield lastSemester
     }
 
 
@@ -121,11 +119,14 @@ let isLegalPlan (plan: StudyPlan): bool =
 let rec getUnitPrereqs (prereq:Prereq) : seq<UnitCode> =
     seq {
         match prereq with
-        | And seq | Or seq ->
+        | And seq 
+        | Or seq ->
             yield! Seq.map getUnitPrereqs seq
                    |> Seq.concat
-        | Unit unit -> yield unit
-        | CreditPoints _ | Nil ->
+        | Unit unit -> 
+            yield unit
+        | CreditPoints _ 
+        | Nil ->
             yield! Seq.empty
     }
 
@@ -157,15 +158,17 @@ let getPrereq (unitCode:UnitCode) : string =
 let displayOffered (unitCode:UnitCode) : string =
     let unitInfo = lookup unitCode
     let offered = unitInfo.offered
-    let offeringToString offering = 
-        match offering with
-        | Semester1 -> "semester 1"
-        | Semester2 -> if not (Set.contains Semester1 offered) then "semester 2" else "2"
-        | Summer -> "summer"
-    Set.toSeq offered
-    |> Seq.map offeringToString
-    |> String.concat " or "
-  
+    let string = 
+        offered
+        |> Set.toSeq
+        |> Seq.map (fun semester ->
+            match semester with
+            | Semester1 -> "1"
+            | Semester2 -> "2"
+            | Summer -> "summer"
+        )
+        |> String.concat " or "
+    "semester " + string
  
   
         
